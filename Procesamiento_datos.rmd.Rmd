@@ -1,0 +1,435 @@
+---
+title: "Caso Pŕactico Final Evaluable"
+output:
+  html_document: default
+  html_notebook: default
+  pdf_document: default
+---
+
+Tomaremos el dataset Salaries.csv
+
+El conjunto de datos consiste en los salarios de nueve meses recogidos de 397 profesores universitarios en los EE.UU. durante 2008 y 2009. Además de los salarios, también se recogió el rango del profesor, el sexo, la disciplina, los años desde el doctorado y los años de servicio. Así, hay un total de 6 variables, que se describen a continuación.
+
+      1. rank: Categórica - de profesor asistente, profesor asociado o catedrático
+      2. discipline: Categórica - Tipo de departamento en el que trabaja el profesor, ya sea aplicado (B) o teórico (A)
+      3. yrs.since.phd: Continuo - Número de años desde que el profesor obtuvo su doctorado
+      4. yrs.service: Continuo - Número de años que el profesor ha prestado servicio al departamento y/o a la universidad
+      5. sex: Categórico - Sexo del profesor, hombre o mujer
+      6. salary: Continuo - Sueldo de nueve meses del profesor (USD)
+
+El objetivo de esta práctica consiste en realizar un estudio íntegro del dataset para terminar implementando un modelo lineal regularizado que realice predicciones sobre el salario a percibir de un profesor. Asimismo, se pedirá aprovechar la explicabilidad de estos modelos y los estudios estadísticos realizados para arrojar intuiciones y dependencias en los datos.
+
+Para ello, se pide al estudiante que realice los siguientes pasos:
+
+1. Carga los datos. Realiza una inspección por variables de la distribución de salarios en función de cada atributo visualmente. Realiza las observaciones pertinentes. ¿Qué variables son mejores para separar los datos?
+
+```{r, warning=FALSE}
+
+#Instalación de librerías
+#remove.packages("rlang")
+#install.packages("https://cran.r-project.org/src/contrib/Archive/rlang/rlang_1.0.6.tar.gz", repos = NULL, type="source")
+#install.packages("ggplot2")
+#install.packages("dplyr")
+#install.packages("glmnet")
+#install.packages("recipes")
+#install.packages("mltools")
+
+library(ggplot2)
+library(dplyr)
+library(glmnet)
+library(caret)
+library(mltools)
+library(data.table)
+```
+
+```{r, warning=FALSE}
+#Carga del dataset
+df<- read.csv("Salaries.csv")
+#write.csv(df,"Salaries.csv")
+df_completo<- df
+df
+
+```
+
+```{r, warning=FALSE}
+str(df)
+
+```
+
+
+```{r, warning=FALSE}
+
+#COnvertimos las variables categóricas en factor.
+
+to_factor <- c('rank' ,'discipline', 'sex')
+
+df[,to_factor] <- lapply(
+  df[,to_factor] , 
+  factor,
+  ordered = TRUE)
+
+
+str(df)
+
+```
+
+
+
+
+```{r, warning=FALSE}
+
+
+attach(df)
+boxplot(salary ~ sex, ylab = "salary",main = "Boxplot salario, sexo")
+
+#Se realizó un bloxpot relacionando la variable sex(categórica) y salary(continua). Se puede observar que la mediana (medida de posición que incluye el 50% de los datos) de ambos sexos es similar. En el caso de los hombres se presentan ciertos salarios mayores (valores atípicos) de los cuáles se necesitaría mantener un conocimiento mayor para realizar un tratamiento de los mismos.
+
+```
+```{r, warning=FALSE}
+attach(df)
+boxplot(salary ~ discipline, ylab = "discipline",main = "Boxplot salario, disciplina")
+# La media del salario , de acuerdo a la variable disciplina es ligeramente superior en la categoría B (Práctico) con respecto a la variable A (Teórico). En las dos disciplinas se encuentran valores atípicos, de los cuáles se necesitaría un mayor entendimiento para su tratamiento.
+```
+```{r, warning=FALSE}
+attach(df)
+boxplot(salary ~ rank, ylab = "rank",main = "Boxplot salario, rank")
+# La media salarial de catedráticos es la mayor de las categorías rank, seguida de profesor asociado. De igual forma se presentan valores atípicos en el factor de catedráticos.
+```
+
+```{r, warning=FALSE}
+plot1 <- ggplot(data = df, aes(x=salary , y= yrs.service),geom_smooth(method=lm), main = "Scatterplot, salario, años servicio")+
+  geom_point()
+
+plot1
+
+# Del scatter plot realizado entre las variables salario y años de servicio (ambas, variables continuas) se observa una gran dispersión de los datos, no se observa una relación clara entre ambas variables.
+
+```
+
+```{r, warning=FALSE}
+plot1 <- ggplot(data = df, aes(x=salary,y=yrs.since.phd),geom_smooth(method=lm))+
+  geom_point()
+
+plot1
+
+# Del scatter plot realizado entre las variables salario y años desde que el profesor realizó su doctorado se observa una gran dispersión de los datos, no se observa una relación clara entre ambas variables
+
+```
+
+Las mejores variables para separar los datos son las categóricas.
+
+
+2. ¿Podemos emplear un test paramétrico para determinar si las medias de salarios entre hombres y mujeres son las mismas o difieren? Ten en cuenta que, en tanto que se pide usar un test paramétrico, se deberá determinar si las muestras cumplen con las hipótesis necesarias.
+
+```{r, warning=FALSE}
+
+#Para emplear un test paramétrico las muestras deben cumplir las hipòtesis de distribución normal
+
+#Es por ello que se verificará la normalidad  de las muestras de salarios de hombres y mujeres mediante un test Shapiro , QQ-plot y curvas de densidad
+
+df %>% # Agrupación por sexo y salario
+  group_by(sex, salary) %>% 
+  summarize(
+    n=n()
+  )
+
+```
+
+```{r, warning=FALSE}
+#Convertir los salarios de los hombres en un vector 
+
+df_vector_homb<- df %>% 
+     filter(sex=="Male")
+df_vector_homb
+vector_hombr<-df_vector_homb$salary
+vector_hombr
+
+```
+
+```{r, warning=FALSE}
+#Aplicar el test Shapiro al vector de los salarios de los hombres 
+
+shapiro.test(vector_hombr)#H0 es que la muestra es normal
+# el p-valor es menor a 0,05 , se acepta la hipótesis H1 , de que no es normal
+
+```
+```{r, warning=FALSE}
+
+## El QQ-PLOT de la muestra de los salarios de los hombres indica que no sigue una distribución normal, los datos se alejan de la recta (de los cuantiles teóricos de una distribución normal)
+qqnorm(vector_hombr)
+qqline(vector_hombr)
+
+
+```
+```{r, warning=FALSE}
+
+#La curva de densidad de la muestra de los salarios de los hombres indica que no sigue una distribución normal
+plot(density(vector_hombr))
+
+```
+
+```{r, warning=FALSE}
+#Convertir los salarios de las mujeres en un vector 
+
+df_vector_muj<- df %>% 
+     filter(sex=="Female")
+df_vector_muj
+vector_muj<-df_vector_muj$salary
+vector_muj
+
+```
+
+```{r, warning=FALSE}
+#Aplicar el test Shapiro al vector de los salarios de las mujeres 
+
+shapiro.test(vector_muj)#H0 es que la muestra es normal
+#El p-valor del test shapiro es menor a 0,5 , por lo que aceptamos la hipótesis alternativa H1: no sigue una distribución normal
+
+```
+```{r, warning=FALSE}
+#Q-Q Plot indica que la muestra de los salarios de las mujeres no sigue una distribución normal, los datos se alejan de la recta.
+qqnorm(vector_muj)
+qqline(vector_muj)
+
+
+```
+```{r, warning=FALSE}
+plot(density(vector_muj))
+
+#La curva de densidad de la muestra de los salarios de las mujeres no muestra una distribución normal
+
+```
+```{r, warning=FALSE}
+
+#Conclusión: para realizar un test paramétrico para determinar la igualdad de las medias de los salarios de hombres y mujeres, las muestras deberían presentar las hipótesis de normalidad en la distribución. Para verificar estas hipótesis se ha realizado los test shapiro y gráficos, se puede observar que las muestras no son normales, por tanto no se puede realizar test paramétricos.
+
+```
+
+3. Divide el dataset tomando las primeras 317 instancias como train y las últimas 80 como test. Entrena un modelo de regresión lineal con regularización Ridge y Lasso en train seleccionando el que mejor **MSE** tenga. Da las métricas en test. Valora el uso del One Hot Encoder, en caso de emplearlo arguméntalo.
+
+
+```{r, warning=FALSE}
+#Al tener variables categóricas (rank,discipline, sex), utilizaremos One Hot Encoder para que a la hora de realizar el modelo no se ponderen como 1, 2 ... tantos números consecutivos como factores tiene la variable categórica. Con One Hot encoder, las variables categóricas se dividirán por cada uno de los factores y tomarán el valor de 1 o 0 dependiendo de si aplica o no dicho factor en la observación, evitando que se ponderen como 1,2,3 y evitando por tanto, dar más importancia a una variable categórica que a otra.
+
+#Aplicamos One Hot encoder para el dataFrame
+df.table <- data.table(df_completo)
+df.encoded <- one_hot(df.table)
+df.encoded
+
+```
+
+```{r, warning=FALSE}
+dummy <- dummyVars(" ~ .", data=df.encoded)
+newdata <- data.frame(predict(dummy, newdata = df.encoded)) 
+newdata
+```
+
+```{r, warning=FALSE}
+
+#Quitar variable x
+newdata <- subset(newdata, select = -c(X))
+
+```
+
+
+```{r, warning=FALSE}
+#División del dataset en train y test
+df_train <- newdata[1:317,] #Primeras 317 instancias para train
+df_test <- newdata[318:397,]#Últimas 80 instancias para test
+df_train
+df_test
+```
+
+
+
+```{r, warning=FALSE}
+#Verificando el número de instancias utilizadas para df_train y df_test
+count(df_train)
+count(df_test)
+```
+
+
+```{r, warning=FALSE}
+
+#Crear matriz con variables (X) y variable objetivo del df train
+
+X <- data.matrix(subset(df_train, select= -  salary))
+y <- c(df_train$salary)
+
+str(X)
+```
+```{r, warning=FALSE}
+
+#Crear matriz con variables (X) y variable objetivo del df train
+
+y
+```
+
+
+
+```{r, warning=FALSE}
+
+#Crear matriz con variables (X) y variable objetivo del df test para realizar posteriormente las pruebas
+
+X_test <- data.matrix(subset(df_test, select= -  salary))
+y_test <- c(df_test$salary)
+```
+
+```{r, warning=FALSE}
+str(X_test)
+```
+
+```{r, warning=FALSE}
+y_test
+```
+
+```{r, warning=FALSE}
+
+#Modelo de regresión de Ridge
+
+cv.ridge <- cv.glmnet(X, y, family='gaussian', alpha=0, type.measure='mse')
+# Resultados
+plot(cv.ridge)
+
+```
+```{r, warning=FALSE}
+#Este es el mejor valor de lambda
+cv.ridge$lambda.min
+
+```
+
+```{r, warning=FALSE}
+#este es el valor del error que se estima para ese valor lambda mínimo dado en MSE
+min(cv.ridge$cvm)
+
+```
+```{r, warning=FALSE}
+
+coef(cv.ridge, s=cv.ridge$lambda.min)
+#Coeficientes obtenidos de modelo Ridge. Coeficientes altos, no tiene coeficientes nulos.
+
+```
+
+```{r, warning=FALSE}
+#Realizamos la predicción con df_test del modelo
+y_pred=predict.glmnet(cv.ridge$glmnet.fit, newx=X_test, s=cv.ridge$lambda.min)
+y_pred
+
+```
+
+
+```{r, warning=FALSE}
+#Cálculo del MSE 
+MSE=((sum(y_test-y_pred)^2)/(count(df_test)))
+MSE
+
+#El valor del MSE es muy alto, se realizará el modelo con Lasso
+
+```
+```{r, warning=FALSE}
+#Modelo de Lasso
+cv.lasso <- cv.glmnet(X, y, family='gaussian', alpha=1, type.measure='mse')
+# Resultados
+plot(cv.lasso)
+
+```
+```{r, warning=FALSE}
+#este es el mejor valor de lambda
+cv.lasso$lambda.min
+
+```
+```{r, warning=FALSE}
+#este es el valor del error que se estima para ese valor lambda mínimo dado en MSE
+min(cv.lasso$cvm)
+# Lasso arroja resultados de error ligeramente inferiores al modelo realizado de Ridge.
+```
+```{r, warning=FALSE}
+coef(cv.lasso, s=cv.lasso$lambda.min)
+#Con el modelo de Lasso obtenemos coeficientes con valor cero, correspondientes a las variables que no son lo suficientemente predictivas. Estas variables correponden a sexo hombre y categoría AssoccProf.
+
+```
+
+
+```{r, warning=FALSE}
+#Preficción sobre datos test
+
+y_pred_lasso=predict.glmnet(cv.lasso$glmnet.fit, newx=X_test, s=cv.lasso$lambda.min)
+y_pred_lasso
+
+```
+
+```{r, warning=FALSE}
+#Cálculo del MSE
+MSE_lasso=((sum((y_test-y_pred_lasso)^2))/(count(df_test)))
+MSE_lasso
+
+```
+```{r, warning=FALSE}
+#El modelo que menor MSE es el modelo lineal de Lasso, sin embargo es un valor muy alto, por lo que no consideraría como un buen modelo para predecir la variable salario
+
+```
+
+4. Estudia la normalidad de los residuos del modelo resultante, ¿detectas algún sesgo?
+
+
+
+```{r, warning=FALSE}
+#Modelo Ridge
+residuo_ridge=y_test-y_pred
+shapiro.test(residuo_ridge) # H0:normal h1:no es normal
+
+
+
+```
+```{r, warning=FALSE}
+#Q-Q PLOT
+qqnorm(residuo_ridge)
+qqline(residuo_ridge)
+
+```
+```{r, warning=FALSE}
+
+plot(density(residuo_ridge))
+ 
+
+```
+
+```{r, warning=FALSE}
+ # Para estudiar la normalidad de los residuos se ha realizado un test Shapiro, un Q-Q Plot y una curva de densidad. Tomado como valor de referencia 0,05 , el test Shapiro arroja un valor menor que nos hace aceptar la hipóteis alternativa de que los datos no siguen una distribución normal. De igual manera el Q-Q Plot no indica una clara normalidad de los datos, que se alejan en la parte superior de la recta. el gráfico de densidad, indica cierta normalidad en los datos y un ligero sesgo a la izquierda.
+
+```
+
+
+
+```{r, warning=FALSE}
+
+#Lasso
+residuo_lasso=y_test-y_pred_lasso
+shapiro.test(residuo_lasso) #H0:normal h1:no es normal
+
+#p-valor muy pequeño, se acepta la hipótesis alternativa, no sigue una distribución normal.
+
+```
+```{r, warning=FALSE}
+#Q-Q PLOT
+qqnorm(residuo_lasso)
+qqline(residuo_lasso)
+
+``` 
+
+```{r, warning=FALSE}
+plot(density(residuo_lasso))
+ 
+
+```
+
+ # Para estudiar la normalidad de los residuos se ha realizado un test Shapiro, un Q-Q Plot y una curva de densidad. Tomado como valor de referencia 0,05 , el test Shapiro arroja un valor menor que nos hace aceptar la hipóteis alternativa de que los datos no siguen una distribución normal. De igual manera el Q-Q Plot no indica una clara normalidad de los datos, que se alejan en la parte superior de la recta. El gráfico de densidad, indica cierta normalidad en los datos y un ligero sesgo a la izquierda.
+
+5. ¿Qué conclusiones extraes de este estudio y del modelo implementado? ¿Consideras correcto el rendimiento del mismo?
+
+```{r, warning=FALSE}
+#Se ha realizado el modelo lineal puesto que salario es una variable continua, empleando Ridge y Lasso. Ambos modelos arrojan un MSE alto,sin en embargo el que menor MSE arroja es el de Lasso. Consideraría que el modelo no tiene un rendimiento correcto debido al alto valor del MSE. Se considera que esto se puede deber a que la cantidad de datos no es suficiente y tal como se puede observar en el análsis exploratorio de los datos de manera gráfica en el punto 1; las variables continuas con respecto a la variable objetivo (salario) mantienen una gran dispersión, no existe una clara dependencia lineal entre variables. De la misma manera , en cuanto a las variables categóricas no se presenta una clara relación, además de que se presentan valores atípicos de los cuales habría que mantener un mejor contexto para verificar si se tratan claramente de outliers. De todas formas estos valores atípicos también podrían estar influyendo en el modelo realizado para que el MSE incremente.
+ 
+
+```
+
