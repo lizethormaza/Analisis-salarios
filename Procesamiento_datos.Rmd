@@ -1,5 +1,5 @@
 ---
-title: "Caso Pŕactico Final Evaluable"
+
 output:
   html_document: default
   html_notebook: default
@@ -19,9 +19,9 @@ El conjunto de datos consiste en los salarios de nueve meses recogidos de 397 pr
 
 El objetivo de esta práctica consiste en realizar un estudio íntegro del dataset para terminar implementando un modelo lineal regularizado que realice predicciones sobre el salario a percibir de un profesor. Asimismo, se pedirá aprovechar la explicabilidad de estos modelos y los estudios estadísticos realizados para arrojar intuiciones y dependencias en los datos.
 
-Para ello, se pide al estudiante que realice los siguientes pasos:
+Se siguieron los siguientes pasos:
 
-1. Carga los datos. Realiza una inspección por variables de la distribución de salarios en función de cada atributo visualmente. Realiza las observaciones pertinentes. ¿Qué variables son mejores para separar los datos?
+1. Carga los datos. Realiza una inspección por variables de la distribución de salarios en función de cada atributo visualmente. Realiza las observaciones pertinentes. 
 
 ```{r, warning=FALSE}
 
@@ -119,7 +119,8 @@ plot1
 Las mejores variables para separar los datos son las categóricas.
 
 
-2. ¿Podemos emplear un test paramétrico para determinar si las medias de salarios entre hombres y mujeres son las mismas o difieren? Ten en cuenta que, en tanto que se pide usar un test paramétrico, se deberá determinar si las muestras cumplen con las hipótesis necesarias.
+
+2. Estudio de test paramétrico para determinar si las medias de los salarios entre hombres y mujeres son las mismas o difieren.
 
 ```{r, warning=FALSE}
 
@@ -205,7 +206,7 @@ plot(density(vector_muj))
 
 ```
 
-3. Divide el dataset tomando las primeras 317 instancias como train y las últimas 80 como test. Entrena un modelo de regresión lineal con regularización Ridge y Lasso en train seleccionando el que mejor **MSE** tenga. Da las métricas en test. Valora el uso del One Hot Encoder, en caso de emplearlo arguméntalo.
+3.División del dataset, tomando las primeras 317 instancias como train y las últimas 80 como test. Entrenamiento de un modelo de regresión lineal con regularización Ridge y Lasso en train seleccionando el que mejor **MSE** tenga. 
 
 
 ```{r, warning=FALSE}
@@ -369,7 +370,7 @@ MSE_lasso
 
 ```
 
-4. Estudia la normalidad de los residuos del modelo resultante, ¿detectas algún sesgo?
+Estudio de la normalidad de los residuos del modelo resultante.
 
 
 
@@ -425,7 +426,7 @@ plot(density(residuo_lasso))
 
  # Para estudiar la normalidad de los residuos se ha realizado un test Shapiro, un Q-Q Plot y una curva de densidad. Tomado como valor de referencia 0,05 , el test Shapiro arroja un valor menor que nos hace aceptar la hipóteis alternativa de que los datos no siguen una distribución normal. De igual manera el Q-Q Plot no indica una clara normalidad de los datos, que se alejan en la parte superior de la recta. El gráfico de densidad, indica cierta normalidad en los datos y un ligero sesgo a la izquierda.
 
-5. ¿Qué conclusiones extraes de este estudio y del modelo implementado? ¿Consideras correcto el rendimiento del mismo?
+5. Conclusiones del este estudio y del modelo implementado
 
 ```{r, warning=FALSE}
 #Se ha realizado el modelo lineal puesto que salario es una variable continua, empleando Ridge y Lasso. Ambos modelos arrojan un MSE alto,sin en embargo el que menor MSE arroja es el de Lasso. Consideraría que el modelo no tiene un rendimiento correcto debido al alto valor del MSE. Se considera que esto se puede deber a que la cantidad de datos no es suficiente y tal como se puede observar en el análsis exploratorio de los datos de manera gráfica en el punto 1; las variables continuas con respecto a la variable objetivo (salario) mantienen una gran dispersión, no existe una clara dependencia lineal entre variables. De la misma manera , en cuanto a las variables categóricas no se presenta una clara relación, además de que se presentan valores atípicos de los cuales habría que mantener un mejor contexto para verificar si se tratan claramente de outliers. De todas formas estos valores atípicos también podrían estar influyendo en el modelo realizado para que el MSE incremente.
